@@ -1,0 +1,58 @@
+[2026-06-09 23:26:12] 🟢 引擎就绪！目标: 440 分
+[2026-06-09 23:26:57] 🔢 验证码 OCR: '4+>--' → None
+[2026-06-09 23:26:59] 🔢 验证码 OCR: '8+2--' → 10
+[2026-06-09 23:29:24] 莫欣睿 - 提交分数: 90
+[2026-06-09 23:30:16] 🔢 验证码 OCR: '5+8' → 13
+[2026-06-09 23:32:39] 莫欣睿 - 提交分数: 90
+[2026-06-09 23:33:14] ❌ 答题异常: Message: stale element reference: stale element not found
+  (Session info: chrome=149.0.7827.102); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#stale-element-reference-exception
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6af583435+14875]
+	chromedriver!GetHandleVerifier [0x7ff6af583490+148d0]
+	chromedriver!(No symbol) [0x7ff6af0d778d]
+	chromedriver!(No symbol) [0x7ff6af0ef44d]
+	chromedriver!(No symbol) [0x7ff6af0edb50]
+	chromedriver!(No symbol) [0x7ff6af0e0346]
+	chromedriver!(No symbol) [0x7ff6af0e04a6]
+	chromedriver!(No symbol) [0x7ff6af0de14e]
+	chromedriver!(No symbol) [0x7ff6af0e2a4f]
+	chromedriver!(No symbol) [0x7ff6af17fc8e]
+	chromedriver!(No symbol) [0x7ff6af15a27a]
+	chromedriver!(No symbol) [0x7ff6af17e9fc]
+	chromedriver!(No symbol) [0x7ff6af123eb0]
+	chromedriver!(No symbol) [0x7ff6af124e23]
+	chromedriver!GetHandleVerifier [0x7ff6afb66c91+5f80d1]
+	chromedriver!GetHandleVerifier [0x7ff6afb6101b+5f245b]
+	chromedriver!GetHandleVerifier [0x7ff6afb86305+617745]
+	chromedriver!GetHandleVerifier [0x7ff6af5a03ee+3182e]
+	chromedriver!GetHandleVerifier [0x7ff6af5a8b0c+39f4c]
+	chromedriver!GetHandleVerifier [0x7ff6af58cb04+1df44]
+	chromedriver!GetHandleVerifier [0x7ff6af58cc94+1e0d4]
+	chromedriver!GetHandleVerifier [0x7ff6af570997+1dd7]
+	KERNEL32!BaseThreadInitThunk [0x7ffcf1d2e957+17]
+	ntdll!RtlUserThreadStart [0x7ffcf35c7c1c+2c]
+
+[2026-06-09 23:34:02] 🔢 验证码 OCR: '5+8-' → 13
+[2026-06-09 23:37:42] ❌ 答题异常: Message: no such element: Unable to locate element: {"method":"css selector","selector":"[id="cq-btn-next"]"}
+  (Session info: chrome=149.0.7827.102); For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#no-such-element-exception
+Stacktrace:
+	chromedriver!GetHandleVerifier [0x7ff6af583435+14875]
+	chromedriver!GetHandleVerifier [0x7ff6af583490+148d0]
+	chromedriver!(No symbol) [0x7ff6af0d778d]
+	chromedriver!(No symbol) [0x7ff6af13195d]
+	chromedriver!(No symbol) [0x7ff6af131c5c]
+	chromedriver!(No symbol) [0x7ff6af181e37]
+	chromedriver!(No symbol) [0x7ff6af17e9fc]
+	chromedriver!(No symbol) [0x7ff6af123eb0]
+	chromedriver!(No symbol) [0x7ff6af124e23]
+	chromedriver!GetHandleVerifier [0x7ff6afb66c91+5f80d1]
+	chromedriver!GetHandleVerifier [0x7ff6afb6101b+5f245b]
+	chromedriver!GetHandleVerifier [0x7ff6afb86305+617745]
+	chromedriver!GetHandleVerifier [0x7ff6af5a03ee+3182e]
+	chromedriver!GetHandleVerifier [0x7ff6af5a8b0c+39f4c]
+	chromedriver!GetHandleVerifier [0x7ff6af58cb04+1df44]
+	chromedriver!GetHandleVerifier [0x7ff6af58cc94+1e0d4]
+	chromedriver!GetHandleVerifier [0x7ff6af570997+1dd7]
+	KERNEL32!BaseThreadInitThunk [0x7ffcf1d2e957+17]
+	ntdll!RtlUserThreadStart [0x7ffcf35c7c1c+2c]
+

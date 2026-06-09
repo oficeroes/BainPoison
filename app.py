@@ -16,14 +16,12 @@ from flask import Flask, request, jsonify, send_file
 # =========================================================================
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
-yuguygugyugu
 app = Flask(__name__)
 
 def resource_path(relative_path):
@@ -140,45 +138,157 @@ def human_click_with_time(driver, element, total_time, end_time_limit):
 
 def normalize_text(text): return "".join(str(text).split())
 
-def run_one_quiz(quiz_bank, c, end_time_limit, student_name):
-    global active_driver
-    school_id, class_name, group_name = "3719", "高二 Form 5", "甲"
-    form_fill_time = float(c.get("FORM_FILL_TIME", 10))
-    total_quiz_time = float(c.get("TOTAL_QUIZ_TIME", 45))
-    quiz_score_range = (int(c.get("QUIZ_SCORE_MIN", 80)), int(c.get("QUIZ_SCORE_MAX", 100)))
-    phone_proxy = c.get("PHONE_PROXY", "").strip()
+def log_run(message):
+    entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
+    with open(RUN_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(entry)
 
-    # 🌟 使用直接导入的底层 ChromeOptions
+def create_chrome_driver(phone_proxy=""):
     options = ChromeOptions()
     options.add_argument('--disable-gpu')
     options.add_argument('--log-level=3')
     options.add_argument('--disable-blink-features=AutomationControlled')
     options.add_argument('--start-maximized')
-    options.add_experimental_option("prefs", {"profile.managed_default_content_settings.images": 2})
-    
-    if phone_proxy: options.add_argument(f'--proxy-server=socks5://{phone_proxy}')
-    
-    # 🌟 使用直接导入的底层 ChromeDriver，完美避开打包报错陷阱！
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    if phone_proxy:
+        options.add_argument(f'--proxy-server=socks5://{phone_proxy}')
     driver = ChromeDriver(options=options)
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'
+    })
     driver.maximize_window()
-    active_driver = driver 
-    wait = WebDriverWait(driver, 10)
-    score_int = 0  
-    
+    return driver
+
+def parse_math_answer(text):
+    if not text:
+        return None
+    cleaned = str(text).strip()
+    for src, dst in [('×', '*'), ('÷', '/'), ('x', '*'), ('X', '*'), ('＋', '+'), ('－', '-')]:
+        cleaned = cleaned.replace(src, dst)
+    cleaned = re.sub(r'[^0-9+\-*/]', '', cleaned)
+    match = re.search(r'(\d+)\s*([+\-*/])\s*(\d+)', cleaned)
+    if not match:
+        digits = re.findall(r'\d+', str(text))
+        if len(digits) >= 2:
+            return int(digits[0]) + int(digits[1])
+        return None
+    a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
+    if op == '+': return a + b
+    if op == '-': return a - b
+    if op == '*': return a * b
+    if op == '/': return a // b if b else None
+    return None
+
+def get_captcha_ocr():
+    try:
+        import ddddocr
+        return ddddocr.DdddOcr(show_ad=False)
+    except ImportError:
+        return None
+
+def solve_math_captcha(driver, wait, end_time_limit, max_attempts=10):
+    ocr = get_captcha_ocr()
+    if ocr is None:
+        log_run("❌ 未安装 ddddocr，请运行: pip install ddddocr")
+        return False
+
+    try:
+        WebDriverWait(driver, 20).until(
+            EC.visibility_of_element_located((By.ID, "cq-cap-overlay"))
+        )
+    except TimeoutException:
+        return True
+
+    for attempt in range(max_attempts):
+        check_time_limits(end_time_limit)
+        try:
+            img_el = wait.until(EC.presence_of_element_located((By.ID, "cq-cap-img")))
+            smart_sleep(0.6, end_time_limit)
+            text = ocr.classification(img_el.screenshot_as_png)
+            answer = parse_math_answer(text)
+            log_run(f"🔢 验证码 OCR: {text!r} → {answer}")
+
+            if answer is None:
+                driver.find_element(By.ID, "cq-cap-refresh").click()
+                smart_sleep(0.8, end_time_limit)
+                continue
+
+            cap_input = driver.find_element(By.ID, "cq-cap-input")
+            cap_input.clear()
+            cap_input.send_keys(str(answer))
+            smart_sleep(0.3, end_time_limit)
+            human_bezier_click(driver, driver.find_element(By.ID, "cq-cap-btn"), end_time_limit)
+
+            WebDriverWait(driver, 8).until(
+                EC.invisibility_of_element_located((By.ID, "cq-cap-overlay"))
+            )
+            return True
+        except TimeoutException:
+            msg_el = driver.find_elements(By.ID, "cq-cap-msg")
+            err = msg_el[0].text.strip() if msg_el and msg_el[0].text.strip() else "验证失败"
+            log_run(f"⚠️ 验证码第 {attempt + 1} 次失败: {err}")
+            try:
+                driver.find_element(By.ID, "cq-cap-refresh").click()
+                smart_sleep(0.8, end_time_limit)
+            except Exception:
+                pass
+        except Exception as e:
+            log_run(f"⚠️ 验证码异常: {e}")
+            smart_sleep(1, end_time_limit)
+
+    return False
+
+def select_class_option(driver, wait, class_name, end_time_limit):
+    def class_ready(d):
+        sel = d.find_element(By.ID, "cq-class-name")
+        return len(Select(sel).options) > 1
+
+    wait.until(class_ready)
+    class_select = Select(driver.find_element(By.ID, "cq-class-name"))
+    for option in class_select.options:
+        if normalize_text(option.text) == normalize_text(class_name) or class_name in option.text:
+            class_select.select_by_visible_text(option.text)
+            return
+    if len(class_select.options) > 1:
+        class_select.select_by_index(1)
+
+def run_one_quiz(quiz_bank, c, end_time_limit, student_name):
+    global active_driver
+    school_id = c.get("SCHOOL_ID", "3719").strip()
+    class_name = c.get("CLASS_NAME", "高二 Form 5").strip()
+    group_name = c.get("GROUP_NAME", "甲").strip()
+    form_fill_time = float(c.get("FORM_FILL_TIME", 10))
+    total_quiz_time = float(c.get("TOTAL_QUIZ_TIME", 45))
+    quiz_score_range = (int(c.get("QUIZ_SCORE_MIN", 80)), int(c.get("QUIZ_SCORE_MAX", 100)))
+    phone_proxy = c.get("PHONE_PROXY", "").strip()
+
+    driver = create_chrome_driver(phone_proxy)
+    active_driver = driver
+    wait = WebDriverWait(driver, 15)
+    score_int = 0
+
     try:
         check_time_limits(end_time_limit)
         driver.get("https://antidrugteens.com/quiz/")
         fill_delays = generate_random_delays(form_fill_time, count=6, min_time=0.5)
-        
+
         human_click_with_time(driver, wait.until(EC.element_to_be_clickable((By.ID, "cq-gate-start"))), fill_delays[0], end_time_limit)
         human_type_with_time(wait.until(EC.visibility_of_element_located((By.ID, "cq-school-id"))), school_id, fill_delays[1], end_time_limit)
         human_click_with_time(driver, driver.find_element(By.ID, "cq-verify-btn"), fill_delays[2], end_time_limit)
-
-        student_name_input = wait.until(EC.visibility_of_element_located((By.ID, "cq-student-name")))
-        Select(driver.find_element(By.ID, "cq-class-name")).select_by_visible_text(class_name)
-        human_type_with_time(student_name_input, student_name, fill_delays[3], end_time_limit)
+        wait.until(lambda d: d.find_element(By.ID, "cq-school-id").get_attribute("disabled"))
+        wait.until(EC.visibility_of_element_located((By.ID, "cq-student-name")))
+        select_class_option(driver, wait, class_name, end_time_limit)
+        human_type_with_time(driver.find_element(By.ID, "cq-student-name"), student_name, fill_delays[3], end_time_limit)
         human_type_with_time(driver.find_element(By.ID, "cq-group"), group_name, fill_delays[4], end_time_limit)
         human_click_with_time(driver, driver.find_element(By.ID, "cq-start-btn"), fill_delays[5], end_time_limit)
+
+        wait.until(lambda d: "quiz-play" in d.current_url)
+        smart_sleep(1, end_time_limit)
+
+        if not solve_math_captcha(driver, wait, end_time_limit):
+            log_run("❌ 数字验证码未能通过，跳过本轮")
+            return 0
 
         wait.until(EC.visibility_of_element_located((By.ID, "cq-quiz-wrap")))
         target_round_score = random.choice(range(quiz_score_range[0], quiz_score_range[1] + 10, 10))
@@ -194,18 +304,21 @@ def run_one_quiz(quiz_bank, c, end_time_limit, student_name):
             
             if correct_answer:
                 ans_norm = normalize_text(correct_answer)
-                all_elements = question_area.find_elements(By.XPATH, ".//*")
                 is_wrong_target = i in wrong_indices
-                correct_elem = next((opt for opt in reversed(all_elements) if opt.text and ans_norm in normalize_text(opt.text)), None)
-                        
+                clickable = question_area.find_elements(By.CSS_SELECTOR, "label, button, .cq-option, [role='button']")
+                if not clickable:
+                    clickable = question_area.find_elements(By.XPATH, ".//*")
+                correct_elem = next((opt for opt in reversed(clickable) if opt.text and ans_norm in normalize_text(opt.text)), None)
+
                 if correct_elem:
-                    if not is_wrong_target: human_bezier_click(driver, correct_elem, end_time_limit)
+                    if not is_wrong_target:
+                        human_bezier_click(driver, correct_elem, end_time_limit)
                     else:
                         cy, cx = correct_elem.location['y'], correct_elem.location['x']
-                        for opt in reversed(all_elements):
+                        for opt in reversed(clickable):
                             opt_text = normalize_text(opt.text)
                             if opt_text and 1 < len(opt_text) < 100 and ans_norm not in opt_text:
-                                if "第" not in opt_text and "共" not in opt_text and "题" not in opt_text:
+                                if "第" not in opt_text and "共" not in opt_text and "题" not in opt_text and "已答" not in opt_text:
                                     if abs(opt.location['y'] - cy) > 30 or abs(opt.location['x'] - cx) > 30:
                                         human_bezier_click(driver, opt, end_time_limit)
                                         break
@@ -213,8 +326,15 @@ def run_one_quiz(quiz_bank, c, end_time_limit, student_name):
             if i < 9: human_bezier_click(driver, driver.find_element(By.ID, "cq-btn-next"), end_time_limit)
             else: human_bezier_click(driver, driver.find_element(By.ID, "cq-btn-submit"), end_time_limit)
 
-        try: WebDriverWait(driver, 1.5).until(EC.alert_is_present()).accept()
-        except: pass 
+        try:
+            WebDriverWait(driver, 1.5).until(EC.alert_is_present()).accept()
+        except Exception:
+            pass
+
+        try:
+            WebDriverWait(driver, 15).until(lambda d: "quiz-result" in d.current_url or "quiz-play" in d.current_url)
+        except TimeoutException:
+            pass
 
         def poll_score_from_page(d):
             try:
@@ -243,12 +363,13 @@ def run_one_quiz(quiz_bank, c, end_time_limit, student_name):
         try: driver.quit()
         except: pass
         raise fse
-    except Exception as e: pass
+    except Exception as e:
+        log_run(f"❌ 答题异常: {e}")
     finally:
         try: driver.quit()
         except: pass
         active_driver = None
-        return score_int  
+    return score_int
 
 def wait_for_start_time(start_time_str, end_time_limit):
     if not start_time_str.strip(): return
@@ -331,7 +452,8 @@ def setup_server():
         "PAUSE_MIN": 5, "PAUSE_MAX": 45,
         "REST_AFTER_SCORE_MIN": 150, "REST_AFTER_SCORE_MAX": 250, 
         "REST_DURATION_MIN": 3, "REST_DURATION_MAX": 5,
-        "START_TIME": "", "END_TIME": "", "PHONE_PROXY": ""
+        "START_TIME": "", "END_TIME": "", "PHONE_PROXY": "",
+        "SCHOOL_ID": "3719", "CLASS_NAME": "高二 Form 5", "GROUP_NAME": "甲"
     }
     save_config(config)
     return jsonify({"success": True})

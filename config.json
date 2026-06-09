@@ -1,8 +1,8 @@
 {
     "name": "莫欣睿",
     "settings": {
-        "TOTAL_QUIZ_TIME": 45,
-        "FORM_FILL_TIME": 15,
+        "TOTAL_QUIZ_TIME": 16,
+        "FORM_FILL_TIME": 7,
         "TARGET_SCORE_MIN": 400,
         "TARGET_SCORE_MAX": 600,
         "QUIZ_SCORE_MIN": 80,
@@ -13,8 +13,7 @@
         "REST_AFTER_SCORE_MAX": 250,
         "REST_DURATION_MIN": 3,
         "REST_DURATION_MAX": 5,
-        "START_TIME": "",
-        "END_TIME": "",
-        "PHONE_PROXY": ""
+        "START_TIME": "2026-06-09 23:25:00",
+        "END_TIME": "2026-06-09 23:48:00"
     }
 }
