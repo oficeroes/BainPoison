@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人专属挂机控制台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .terminal { font-family: 'Courier New', Courier, monospace; background-color: #1e1e1e; color: #4af626; }
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-10 font-sans min-h-screen flex flex-col relative">
+
+<div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold shadow-xl transition-all duration-300 z-50 opacity-0 pointer-events-none scale-90"></div>
+
+<div id="logModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex justify-center items-center z-40 p-4 backdrop-blur-sm transition-opacity">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col h-[85vh] overflow-hidden">
+        <div class="flex justify-between items-center p-4 border-b bg-gray-50">
+            <h3 class="font-bold text-lg text-gray-800 flex items-center gap-2"><span>📜</span> 运行日志终端</h3>
+            <button onclick="closeLogModal()" class="text-gray-500 hover:text-red-500 font-bold text-2xl transition">&times;</button>
+        </div>
+        <div id="logTerminal" class="terminal flex-1 p-5 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed tracking-wide"></div>
+    </div>
+</div>
+
+<div id="setupView" class="hidden m-auto w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 text-center fade-in">
+    <div class="text-6xl mb-4">🚀</div>
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">欢迎来到个人专属服务器</h1>
+    <p class="text-gray-500 text-sm mb-8">系统检测到这是首次启动，请绑定您的姓名。</p>
+    <input type="text" id="setupName" placeholder="请输入您的真实姓名" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl mb-4 text-center text-lg focus:outline-none focus:border-green-500 transition">
+    <button onclick="submitSetup()" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 active:scale-95 transition-transform shadow-lg">绑定并初始化系统</button>
+</div>
+
+<div id="dashboardView" class="hidden max-w-5xl mx-auto w-full bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden fade-in">
+    
+    <div class="bg-gradient-to-r from-gray-800 to-gray-900 p-6 flex flex-col md:flex-row justify-between items-center border-b border-gray-700">
+        <div class="flex items-center gap-4 mb-4 md:mb-0">
+            <div class="bg-white p-3 rounded-full shadow-inner text-2xl">👨‍🎓</div>
+            <div>
+                <h2 class="text-2xl font-bold text-white tracking-wide"><span id="ownerName"></span> 的专属挂机面板</h2>
+                <div id="statusBadge" class="mt-1">
+                    <span class="text-xs bg-gray-600 text-gray-300 px-3 py-1 rounded-full border border-gray-500">⚪ 待命中</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex flex-col items-end gap-3 w-full md:w-auto">
+            <div class="bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2 w-full md:w-auto justify-between">
+                <span>🌍 手机远程访问:</span>
+                <span id="tunnelUrl" class="text-green-400 font-mono truncate max-w-[200px] select-all">检测中...</span>
+                <button onclick="copyTunnelUrl()" class="hover:text-white transition">📋</button>
+            </div>
+            <!-- 这个 div 就是放按钮的地方 -->
+            <div class="flex gap-2 w-full md:w-auto" id="actionButtons"></div>
+        </div>
+    </div>
+
+    <div class="p-6 md:p-10 flex-1 overflow-y-auto no-scrollbar bg-gray-50">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            
+            <div class="col-span-2 md:col-span-4 border-b border-gray-200 pb-2"><h3 class="font-bold text-gray-600 flex items-center gap-2"><span>⏱️</span> 速度与分数引擎</h3></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">答题总时长(秒)</label><input type="number" id="TOTAL_QUIZ_TIME" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">填表总时长(秒)</label><input type="number" id="FORM_FILL_TIME" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">总分目标(最低)</label><input type="number" step="10" id="TARGET_SCORE_MIN" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">总分目标(最高)</label><input type="number" step="10" id="TARGET_SCORE_MAX" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">单局得分(最低)</label><input type="number" step="10" id="QUIZ_SCORE_MIN" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">单局得分(最高)</label><input type="number" step="10" id="QUIZ_SCORE_MAX" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">局间发呆(最短秒)</label><input type="number" id="PAUSE_MIN" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">局间发呆(最长秒)</label><input type="number" id="PAUSE_MAX" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+
+            <div class="col-span-2 md:col-span-4 border-b border-gray-200 pb-2 mt-4"><h3 class="font-bold text-gray-600 flex items-center gap-2"><span>📅</span> 定时任务 (留空立即启动)</h3></div>
+            <div class="col-span-2"><label class="block text-xs font-bold text-gray-500 mb-1">启动时间</label><input type="datetime-local" id="START_TIME" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div class="col-span-2"><label class="block text-xs font-bold text-gray-500 mb-1">强制关机时间</label><input type="datetime-local" id="END_TIME" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+
+            <div class="col-span-2 md:col-span-4 border-b border-gray-200 pb-2 mt-4"><h3 class="font-bold text-gray-600 flex items-center gap-2"><span>☕</span> 随机长休防封机制</h3></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">疲劳触发最低分</label><input type="number" step="10" id="REST_AFTER_SCORE_MIN" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">疲劳触发最高分</label><input type="number" step="10" id="REST_AFTER_SCORE_MAX" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">长休分钟(最短)</label><input type="number" id="REST_DURATION_MIN" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+            <div><label class="block text-xs font-bold text-gray-500 mb-1">长休分钟(最长)</label><input type="number" id="REST_DURATION_MAX" class="w-full px-4 py-2 bg-gray-100 border-transparent focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-200 rounded-lg outline-none"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let isTaskRunning = false;
+    let logInterval = null; 
+
+    function showToast(msg, isError=false) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = `fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold shadow-xl transition-all duration-300 z-50 ${isError ? 'bg-red-500' : 'bg-green-500'} opacity-100 scale-100`;
+        setTimeout(() => { toast.classList.remove('opacity-100', 'scale-100'); toast.classList.add('opacity-0', 'scale-90'); }, 2500);
+    }
+
+    function toHtmlFormat(pyStr) {
+        if (!pyStr) return "";
+        let p = pyStr.split(' '); return p.length > 1 ? `${p[0]}T${p[1].substring(0,5)}` : "";
+    }
+    function toPythonFormat(htmlStr) {
+        return htmlStr ? htmlStr.replace('T', ' ') + ':00' : "";
+    }
+
+    function checkTunnelUrl() {
+        setInterval(() => {
+            fetch('/api/tunnel').then(r => r.json()).then(res => {
+                const tunnelSpan = document.getElementById('tunnelUrl');
+                if(res.url && tunnelSpan.innerText !== res.url) tunnelSpan.innerText = res.url;
+            }).catch(e=>{});
+        }, 3000);
+    }
+
+    function copyTunnelUrl() {
+        const txt = document.getElementById('tunnelUrl').innerText;
+        if(txt.startsWith('http')) {
+            navigator.clipboard.writeText(txt);
+            showToast('✅ 网址已复制！发送给手机即可在外面控制电脑');
+        } else {
+            showToast('⚠️ 网址还在生成中，请稍等', true);
+        }
+    }
+
+    // ============================================
+    // 🌟 核心修复点：在此函数中强制渲染一次按钮
+    // ============================================
+    function init() {
+        fetch('/api/config').then(r => r.json()).then(data => {
+            if (!data.name) {
+                document.getElementById('setupView').classList.remove('hidden');
+                document.getElementById('dashboardView').classList.add('hidden');
+            } else {
+                document.getElementById('setupView').classList.add('hidden');
+                document.getElementById('dashboardView').classList.remove('hidden');
+                document.getElementById('ownerName').innerText = data.name;
+                
+                const s = data.settings;
+                const fields = ['TOTAL_QUIZ_TIME', 'FORM_FILL_TIME', 'TARGET_SCORE_MIN', 'TARGET_SCORE_MAX', 'QUIZ_SCORE_MIN', 'QUIZ_SCORE_MAX', 'PAUSE_MIN', 'PAUSE_MAX', 'REST_AFTER_SCORE_MIN', 'REST_AFTER_SCORE_MAX', 'REST_DURATION_MIN', 'REST_DURATION_MAX'];
+                fields.forEach(f => { if(s[f] !== undefined) document.getElementById(f).value = s[f]; });
+                document.getElementById('START_TIME').value = toHtmlFormat(s['START_TIME']);
+                document.getElementById('END_TIME').value = toHtmlFormat(s['END_TIME']);
+                
+                // 【修复点】：进页面时强制问一次后台状态，无论怎样都渲染一次 UI 按钮！
+                fetch('/api/status').then(r => r.json()).then(res => {
+                    updateUI(res.running); 
+                    checkStatusLoop(); 
+                });
+
+                checkTunnelUrl();
+            }
+        });
+    }
+
+    function submitSetup() {
+        const name = document.getElementById('setupName').value.trim();
+        if (!name) return showToast('请输入您的姓名', true);
+        fetch('/api/setup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name}) })
+        .then(() => { showToast('✅ 绑定成功！'); init(); });
+    }
+
+    function saveSettings() {
+        const fields = ['TOTAL_QUIZ_TIME', 'FORM_FILL_TIME', 'TARGET_SCORE_MIN', 'TARGET_SCORE_MAX', 'QUIZ_SCORE_MIN', 'QUIZ_SCORE_MAX', 'PAUSE_MIN', 'PAUSE_MAX', 'REST_AFTER_SCORE_MIN', 'REST_AFTER_SCORE_MAX', 'REST_DURATION_MIN', 'REST_DURATION_MAX'];
+        let settings = {};
+        fields.forEach(f => {
+            let val = document.getElementById(f).value;
+            settings[f] = val !== "" ? Number(val) : "";
+        });
+        settings['START_TIME'] = toPythonFormat(document.getElementById('START_TIME').value);
+        settings['END_TIME'] = toPythonFormat(document.getElementById('END_TIME').value);
+
+        fetch('/api/settings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(settings) })
+        .then(() => showToast('✅ 配置已安全保存！'));
+    }
+
+    function updateUI(running) {
+        isTaskRunning = running;
+        const badge = document.getElementById('statusBadge');
+        const btnBox = document.getElementById('actionButtons');
+
+        if (running) {
+            badge.innerHTML = `<span class="text-xs bg-green-500 text-white px-3 py-1 rounded-full shadow-md flex items-center gap-2 w-max animate-pulse"><div class="w-1.5 h-1.5 bg-white rounded-full"></div>引擎运转中</span>`;
+            btnBox.innerHTML = `
+                <button onclick="openLogModal()" class="flex-1 bg-gray-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow-lg hover:bg-gray-600 active:scale-95 transition">📜 实时日志</button>
+                <button onclick="stopScript()" class="flex-1 bg-red-500 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-red-600 active:scale-95 transition">🛑 紧急停止</button>`;
+        } else {
+            badge.innerHTML = `<span class="text-xs bg-gray-600 text-gray-300 px-3 py-1 rounded-full border border-gray-500">⚪ 待命中</span>`;
+            btnBox.innerHTML = `
+                <button onclick="openLogModal()" class="flex-1 bg-gray-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow hover:bg-gray-600 active:scale-95 transition">📜 历史日志</button>
+                <button onclick="saveSettings()" class="flex-1 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold shadow hover:bg-blue-500 active:scale-95 transition">💾 保存设置</button>
+                <button onclick="runScript()" class="flex-1 bg-green-500 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-lg hover:bg-green-400 active:scale-95 transition">🚀 启动引擎</button>`;
+        }
+    }
+
+    function checkStatusLoop() {
+        setInterval(() => {
+            fetch('/api/status').then(r => r.json()).then(res => {
+                if (res.running !== isTaskRunning) updateUI(res.running);
+            });
+        }, 1500);
+    }
+
+    function runScript() {
+        fetch('/api/run', { method: 'POST' }).then(r => r.json()).then(res => {
+            if (res.success) { showToast('🚀 引擎点火成功！'); updateUI(true); setTimeout(openLogModal, 800); }
+            else showToast('❌ ' + res.error, true);
+        });
+    }
+
+    function stopScript() {
+        if(confirm(`确定要强行拉闸切断任务吗？`)){
+            fetch('/api/stop', { method: 'POST' }).then(r => r.json()).then(res => {
+                if (res.success) { showToast('🛑 引擎已切断！'); updateUI(false); }
+            });
+        }
+    }
+
+    function openLogModal() {
+        document.getElementById('logModal').classList.remove('hidden');
+        if(logInterval) clearInterval(logInterval);
+        logInterval = setInterval(() => {
+            fetch('/api/logs').then(r => r.json()).then(data => {
+                const terminal = document.getElementById('logTerminal');
+                if(terminal.innerText !== data.log && data.log.trim() !== "") {
+                    let isScrolledToBottom = terminal.scrollHeight - terminal.clientHeight <= terminal.scrollTop + 10;
+                    terminal.innerText = data.log;
+                    if(isScrolledToBottom) terminal.scrollTop = terminal.scrollHeight;
+                }
+            });
+        }, 1000);
+    }
+
+    function closeLogModal() {
+        document.getElementById('logModal').classList.add('hidden');
+        if(logInterval) clearInterval(logInterval);
+    }
+
+    init();
+</script>
+</body>
+</html>
