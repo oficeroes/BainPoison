@@ -7,8 +7,9 @@ import random
 import webbrowser
 import threading
 import subprocess
+import hmac
 from datetime import datetime
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 
 # =========================================================================
 # 🌟 【终极杀手锏】彻底抛弃常规 webdriver.Chrome，直接显式导入底层真实类！
@@ -41,7 +42,22 @@ RUN_LOG_FILE = os.path.join(BASE_DIR, "run.log")
 active_driver = None
 stop_flag = False
 worker_thread = None
-cloudflare_url = "正在检测并连接外网穿透..."
+cloudflare_url = "仅本机访问（未启用隧道）"
+
+REMOTE_ACCESS = os.environ.get('BAINPOISON_ENABLE_TUNNEL') == '1'
+ACCESS_PASSWORD = os.environ.get('BAINPOISON_PASSWORD', '')
+
+@app.before_request
+def require_password():
+    # 开启远程访问时，页面与全部 API 都必须使用同一口令。
+    if not REMOTE_ACCESS:
+        return None
+    if not ACCESS_PASSWORD:
+        return Response('远程访问未配置口令', 503)
+    credentials = request.authorization
+    if credentials and credentials.username == 'admin' and hmac.compare_digest(credentials.password or '', ACCESS_PASSWORD):
+        return None
+    return Response('需要访问口令', 401, {'WWW-Authenticate': 'Basic realm="BainPoison"'})
 
 class ForceStopException(Exception): pass
 
@@ -508,7 +524,10 @@ def get_tunnel():
     return jsonify({"url": cloudflare_url})
 
 if __name__ == '__main__':
-    start_cloudflare_tunnel()
+    if REMOTE_ACCESS:
+        if not ACCESS_PASSWORD:
+            raise SystemExit('启用远程访问前，请设置 BAINPOISON_PASSWORD。')
+        start_cloudflare_tunnel()
     try: webbrowser.open("http://127.0.0.1:5000")
     except: pass
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    app.run(host='127.0.0.1', port=5000, debug=False, threaded=True)
